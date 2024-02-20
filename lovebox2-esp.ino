@@ -73,11 +73,10 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
 
-  myservo.attach(D0);  // attaches the servo on pin D0 to the servo object
+  myservo.attach(D0, 500, 2400);  // attaches the servo on pin D0 to the servo object
   myservo.write(originPos); // start at origin position
   
   pinMode(vib, OUTPUT); // Initialize the Vibrator pin as an output
-  delay(100);
   digitalWrite(vib, LOW); //set vibrator off
 
   //Initialize Screen
