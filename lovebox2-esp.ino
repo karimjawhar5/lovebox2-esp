@@ -19,12 +19,43 @@ const long intervalServo = 1000; // interval at which to move servo (1 second)
 // Wifi & HTTP Libraries
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
+const char IRG_Root_X1 [] PROGMEM = R"CERT(-----BEGIN CERTIFICATE-----
+MIIEXjCCA0agAwIBAgITB3MSSkvL1E7HtTvq8ZSELToPoTANBgkqhkiG9w0BAQsF
+ADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6
+b24gUm9vdCBDQSAxMB4XDTIyMDgyMzIyMjUzMFoXDTMwMDgyMzIyMjUzMFowPDEL
+MAkGA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEcMBoGA1UEAxMTQW1hem9uIFJT
+QSAyMDQ4IE0wMjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALtDGMZa
+qHneKei1by6+pUPPLljTB143Si6VpEWPc6mSkFhZb/6qrkZyoHlQLbDYnI2D7hD0
+sdzEqfnuAjIsuXQLG3A8TvX6V3oFNBFVe8NlLJHvBseKY88saLwufxkZVwk74g4n
+WlNMXzla9Y5F3wwRHwMVH443xGz6UtGSZSqQ94eFx5X7Tlqt8whi8qCaKdZ5rNak
++r9nUThOeClqFd4oXych//Rc7Y0eX1KNWHYSI1Nk31mYgiK3JvH063g+K9tHA63Z
+eTgKgndlh+WI+zv7i44HepRZjA1FYwYZ9Vv/9UkC5Yz8/yU65fgjaE+wVHM4e/Yy
+C2osrPWE7gJ+dXMCAwEAAaOCAVowggFWMBIGA1UdEwEB/wQIMAYBAf8CAQAwDgYD
+VR0PAQH/BAQDAgGGMB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAdBgNV
+HQ4EFgQUwDFSzVpQw4J8dHHOy+mc+XrrguIwHwYDVR0jBBgwFoAUhBjMhTTsvAyU
+lC4IWZzHshBOCggwewYIKwYBBQUHAQEEbzBtMC8GCCsGAQUFBzABhiNodHRwOi8v
+b2NzcC5yb290Y2ExLmFtYXpvbnRydXN0LmNvbTA6BggrBgEFBQcwAoYuaHR0cDov
+L2NydC5yb290Y2ExLmFtYXpvbnRydXN0LmNvbS9yb290Y2ExLmNlcjA/BgNVHR8E
+ODA2MDSgMqAwhi5odHRwOi8vY3JsLnJvb3RjYTEuYW1hem9udHJ1c3QuY29tL3Jv
+b3RjYTEuY3JsMBMGA1UdIAQMMAowCAYGZ4EMAQIBMA0GCSqGSIb3DQEBCwUAA4IB
+AQAtTi6Fs0Azfi+iwm7jrz+CSxHH+uHl7Law3MQSXVtR8RV53PtR6r/6gNpqlzdo
+Zq4FKbADi1v9Bun8RY8D51uedRfjsbeodizeBB8nXmeyD33Ep7VATj4ozcd31YFV
+fgRhvTSxNrrTlNpWkUk0m3BMPv8sg381HhA6uEYokE5q9uws/3YkKqRiEz3TsaWm
+JqIRZhMbgAfp7O7FUwFIb7UIspogZSKxPIWJpxiPo3TcBambbVtQOcNRWz5qCQdD
+slI2yayq0n2TXoHyNCLEH8rpsJRVILFsg0jc7BaFrMnF462+ajSehgj12IidNeRN
+4zl+EoNaWdpnWndvSpAEkq2P
+-----END CERTIFICATE-----
+)CERT";
+
+X509List cert(IRG_Root_X1);
+
 // Wifi & HTTP URL Setup
-const char* ssid = "Arora4";
-const char* password = "singapore2300";
-const char* serverUrl = "http://192.168.86.83:8080";
+const char *ssid = "BELL049";
+const char *password = "EEF34D93CEAC";
+const char* serverUrl = "https://lovebox2-server-8d8e33f8d8e3.herokuapp.com";
 
 //Global Variables
 uint8_t nav = 0; // Determines Current Page
@@ -89,15 +120,31 @@ void setup() {
   Serial.println(F("Screen Initialized"));
   
   // Connect to Wi-Fi
+  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.println("Connecting to WiFi.");
   while (WiFi.status() != WL_CONNECTED) {
-      delay(1000);
-      Serial.print("...");
+      delay(500);
+      Serial.print('.');
   }
-  Serial.println(" ");
+  Serial.println(' ');
   Serial.println("Connected to WiFi");
 
+  // Set time via NTP, as required for x.509 validation
+  configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  Serial.print("Waiting for NTP time sync: ");
+  time_t now = time(nullptr);
+  while (now < 8 * 3600 * 2) {
+    delay(500);
+    Serial.print(".");
+    now = time(nullptr);
+  }
+  Serial.println("");
+  struct tm timeinfo;
+  gmtime_r(&now, &timeinfo);
+  Serial.print("Current time: ");
+  Serial.print(asctime(&timeinfo));
+  
   // Initialize MPU6050
   if (!mpu.begin()) {
     Serial.println("Failed to find MPU6050 chip");
@@ -249,7 +296,9 @@ bool getLatestMessage() {
     return false;
   }
   
-  WiFiClient client;
+  WiFiClientSecure client;
+  client.setTrustAnchors(&cert);
+  
   HTTPClient http;
   
   String url = String(serverUrl) + "/get_latest_message_index";
@@ -292,7 +341,9 @@ bool getIndexMessage(int indexMessage) {
     return false;
   }
   
-  WiFiClient client;
+  WiFiClientSecure client;
+  client.setTrustAnchors(&cert);
+  
   HTTPClient http;
   
   String url = String(serverUrl) + "/get_index_message/" + String(indexMessage);
@@ -334,7 +385,9 @@ bool getNewMessage() {
     return false;
   }
   
-  WiFiClient client;
+  WiFiClientSecure client;
+  client.setTrustAnchors(&cert);
+  
   HTTPClient http;
   
   String url = String(serverUrl) + "/get_new_message";
@@ -376,7 +429,9 @@ void setMessageReadStatus() {
     return;
   }
   
-  WiFiClient client;
+  WiFiClientSecure client;
+  client.setTrustAnchors(&cert);
+  
   HTTPClient http;
   
   String url = String(serverUrl) + "/set_message_read";
@@ -407,7 +462,9 @@ void getImageData() {
     return;
   }
 
-  WiFiClient client;
+  WiFiClientSecure client;
+  client.setTrustAnchors(&cert);
+  
   HTTPClient http;
 
   String url = String(serverUrl) + "/get_image_data";
