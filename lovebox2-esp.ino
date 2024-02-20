@@ -485,9 +485,9 @@ void getImageData() {
   }
   
 
-  WiFiClient* stream = http.getStreamPtr();
+  WiFiClientSecure* stream = http.getStreamPtr();
   imageData.clear(); // Clear existing data
-  imageData.reserve(128 * 135); // Pre-allocate memory
+  imageData.reserve(64 * 80); // Pre-allocate memory
 
   uint8_t buffer[512];
   int len = http.getSize();
