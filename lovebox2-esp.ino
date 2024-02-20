@@ -13,8 +13,10 @@ const int originPos = 90;
 const int leftPos = 0;   // 90 degrees left of origin
 const int rightPos = 180; // 90 degrees right of origin
 
-unsigned long previousMillisServi = 0; // will store last time servo was updated
-const long intervalServo = 1000; // interval at which to move servo (1 second)
+unsigned long previousMillisServo = 0; // will store last time the servo was updated
+const long intervalServo = 5; // interval at which to move servo (milliseconds)
+int posServo = 90; // servo position
+bool increasingServo = true; // direction of servo movement
 
 // Wifi & HTTP Libraries
 #include <ESP8266WiFi.h>
@@ -132,7 +134,6 @@ void loop() {
       displayGraphic(width, height, animation[1], "Fetching Message");
       getImageData(); // Get and save image data
       clearScreen = true;
-      moveServoSequence();
       nav = 1; //navigate to new message page
     }
     lastMessageCheckTime = millis(); // Reset the timer
@@ -166,10 +167,13 @@ void loop() {
   }
   
   else if (nav == 1) { // New Message Page
-    //Clear Screen
     if(newMessageRead == false){
       displayAnimation(5, 16, 12, width, height, animation, "Shake To Open"); //Display Default Animation
+      moveServoSequence();
+    }else{
+      myservo.write(originPos); // start at origin position
     }
+    
     // Shake detection
     if (sqrt((a.acceleration.x * a.acceleration.x) + (a.acceleration.z * a.acceleration.z) + (a.acceleration.y * a.acceleration.y)) > 18.0) {
       Serial.println("Shake detected!");
@@ -506,12 +510,28 @@ void displayGraphic (int width, int height, const unsigned short graphic[4624], 
 }
 
 void moveServoSequence() {
-  myservo.write(rightPos);
-  delay(500);
-  myservo.write(leftPos);
-  delay(500);
-  myservo.write(originPos);
-  delay(500);
+  unsigned long currentMillisServo = millis();
+
+  if (currentMillisServo - previousMillisServo >= intervalServo) {
+    // Save the last time you moved the servo
+    previousMillisServo = currentMillisServo;
+
+    // Move the servo to the next position
+    myservo.write(posServo);
+
+    // Update the position for the next move
+    if (increasingServo) {
+      posServo++;
+      if (posServo >= 180) {
+        increasingServo = false; // Change direction at 180 degrees
+      }
+    } else {
+      posServo--;
+      if (posServo <= 0) {
+        increasingServo = true; // Change direction at 0 degrees
+      }
+    }
+  }
 }
 
 void hapticPulse() {
